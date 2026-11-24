@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Центр бронирования</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="app-booting">
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">SLC</span>
+          <div>
+            <strong>Центр кабинок и игр</strong>
+            <span>Бронь, выдача, администрирование</span>
+          </div>
+        </div>
+
+        <nav class="nav-tabs" aria-label="Основные разделы">
+          <button class="nav-tab active" data-view="dashboard" type="button">Главная</button>
+          <button class="nav-tab" data-view="cabins" type="button">Кабинки</button>
+          <button class="nav-tab" data-view="games" type="button">Игры</button>
+          <button class="nav-tab admin-nav-tab hidden" data-view="admin" type="button">Админ</button>
+          <button class="nav-tab" data-view="profile" type="button">Профиль</button>
+        </nav>
+
+        <div class="theme-card">
+          <span>Тема сайта</span>
+          <button id="themeTogglePanel" class="theme-toggle" type="button" aria-pressed="false">
+            <span class="theme-icon" aria-hidden="true"></span>
+            <strong id="themeLabelPanel">Светлая</strong>
+          </button>
+        </div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Сервисы кампуса</p>
+            <h1>Школа 21: бронирование кабинок и выдача игр</h1>
+          </div>
+          <div class="top-actions">
+            <button id="themeToggle" class="icon-button" type="button" title="Сменить тему" aria-label="Сменить тему" aria-pressed="false">
+              <span id="themeIcon" aria-hidden="true">☾</span>
+            </button>
+            <button id="notifyButton" class="icon-button" type="button" title="Включить пуш-уведомления" aria-label="Включить пуш-уведомления">
+              <span aria-hidden="true">!</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="home view active" id="dashboard">
+          <div class="home-heading">
+            <p class="eyebrow">Школа 21</p>
+            <h2>Цифровая стойка кампуса</h2>
+          </div>
+
+          <div class="home-actions">
+            <button class="home-action cabin-action" data-view="cabins" type="button">
+              <span>Переговорные</span>
+              <strong>Забронировать кабинку</strong>
+              <small>Выбор по времени, числу участников и свободным местам</small>
+            </button>
+            <button class="home-action game-action" data-view="games" type="button">
+              <span>Консоли</span>
+              <strong>Получить игру</strong>
+              <small>Xbox и PlayStation, наличие и способ получения</small>
+            </button>
+          </div>
+        </section>
+
+        <section class="metrics">
+          <article>
+            <span id="freeCabinsMetric">0</span>
+            <p>свободных кабинок сейчас</p>
+          </article>
+          <article>
+            <span id="gamesMetric">0</span>
+            <p>уникальных игр в каталоге</p>
+          </article>
+          <article>
+            <span id="activeBookingsMetric">0</span>
+            <p>активных броней</p>
+          </article>
+        </section>
+
+        <section class="view" id="cabins">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">База 1</p>
+              <h2>Бронирование кабинок</h2>
+            </div>
+            <span class="status-pill">Рекомендации обновляются по времени и числу людей</span>
+          </div>
+
+          <div class="work-grid">
+            <form id="bookingForm" class="panel">
+              <h3>Новая бронь</h3>
+              <div class="two-cols">
+                <label>
+                  Начало
+                  <input name="start" required type="datetime-local" />
+                </label>
+                <label>
+                  Длительность
+                  <select name="duration">
+                    <option value="30">30 минут</option>
+                    <option value="60" selected>1 час</option>
+                    <option value="90">1,5 часа</option>
+                    <option value="120">2 часа</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                Количество человек
+                <input name="people" min="1" max="12" required type="number" value="2" />
+              </label>
+              <label>
+                Кабинка
+                <select name="cabin" id="cabinSelect"></select>
+              </label>
+              <button class="primary wide" type="submit">Забронировать</button>
+            </form>
+
+            <div class="panel">
+              <h3>Рекомендации кабинок</h3>
+              <div id="recommendations" class="recommendations"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" id="games">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">База 2</p>
+              <h2>Запрос на выдачу игры</h2>
+            </div>
+            <span class="status-pill">SMS-ответ показывается как системное уведомление</span>
+          </div>
+
+          <div class="work-grid">
+            <form id="consoleBookingForm" class="panel">
+              <h3>1. Забронировать консоль</h3>
+              <div class="two-cols">
+                <label>
+                  Начало
+                  <input name="start" required type="datetime-local" />
+                </label>
+                <label>
+                  Длительность
+                  <select name="duration">
+                    <option value="30">30 минут</option>
+                    <option value="60" selected>1 час</option>
+                    <option value="90">1,5 часа</option>
+                    <option value="120">2 часа</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                Платформа
+                <select name="platform" id="consolePlatformSelect">
+                  <option>Xbox</option>
+                  <option>PlayStation</option>
+                </select>
+              </label>
+              <div id="consoleRecommendations" class="recommendations"></div>
+              <button class="primary wide" type="submit">Забронировать консоль</button>
+            </form>
+
+            <form id="gameRequestForm" class="panel">
+              <h3>2. Выбрать игру</h3>
+              <p id="activeConsoleSummary" class="form-note">Сначала забронируйте консоль.</p>
+              <label>
+                Категория
+                <select name="gameCategory" id="gameCategoryFilter">
+                  <option value="all">Все игры</option>
+                  <option value="available">Есть свободные копии</option>
+                  <option value="xbox">Свободно на Xbox</option>
+                  <option value="playstation">Свободно на PlayStation</option>
+                  <option value="unavailable">Нет свободных копий</option>
+                </select>
+              </label>
+              <label>
+                Название игры
+                <select name="game" id="gameSelect"></select>
+              </label>
+              <p id="selectedGameSummary" class="selected-game-summary" aria-live="polite"></p>
+              <button id="selectedGamePreview" class="secondary wide" type="button">Смотреть трейлер и фото</button>
+              <p class="form-note">Игра выбирается только для забронированной консоли. Останется выбрать свободную копию.</p>
+              <div class="two-cols">
+                <label>
+                  Консоль
+                  <select name="console">
+                    <option>Xbox</option>
+                    <option>PlayStation</option>
+                  </select>
+                </label>
+                <label>
+                  Копия по счету
+                  <select name="copy" id="copySelect" required></select>
+                </label>
+              </div>
+              <label>
+                Получение
+                <select name="delivery">
+                  <option>Самовывоз</option>
+                  <option>Доставка</option>
+                </select>
+              </label>
+              <button class="primary wide" type="submit">Запросить выдачу</button>
+            </form>
+
+            <div class="panel catalog-panel" id="gamesCatalogPanel">
+              <div class="catalog-panel-heading">
+                <h3>Каталог игр</h3>
+                <div class="catalog-panel-actions">
+                  <span id="gamesCatalogCount" class="tag">0 позиций</span>
+                  <button id="gamesCatalogToggle" type="button" aria-expanded="false">Показать каталог</button>
+                </div>
+              </div>
+              <div id="gamesCatalog" class="catalog"></div>
+            </div>
+          </div>
+
+          <div class="panel table-panel">
+            <div class="panel-heading">
+              <h3>История запросов</h3>
+              <span id="requestHint"></span>
+            </div>
+            <div id="requestsList" class="list"></div>
+          </div>
+        </section>
+
+        <section class="view" id="admin">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Панель управления</p>
+              <h2>Администрирование</h2>
+            </div>
+            <span id="adminLock" class="status-pill danger">Доступно только администратору</span>
+          </div>
+
+          <div class="work-grid admin-only">
+            <form id="addGameForm" class="panel">
+              <h3>Добавить игру</h3>
+              <label>
+                Название
+                <input name="title" required placeholder="Название игры" />
+              </label>
+              <label>
+                Обложка
+                <input name="image_url" placeholder="https://... или assets/covers/game.jpg" />
+              </label>
+              <label>
+                YouTube трейлер
+                <input name="youtube_id" placeholder="Ссылка на YouTube или ID видео" />
+              </label>
+              <label>
+                Фото геймплея
+                <textarea name="screenshots" rows="5" placeholder="До 5 ссылок, каждая с новой строки"></textarea>
+              </label>
+              <div class="two-cols">
+                <label>
+                  Консоль
+                  <select name="console">
+                    <option>Xbox</option>
+                    <option>PlayStation</option>
+                  </select>
+                </label>
+                <label>
+                  Всего копий
+                  <input name="total" min="1" required type="number" value="1" />
+                </label>
+              </div>
+              <button class="primary wide" type="submit">Добавить без дублей</button>
+            </form>
+
+            <div class="panel">
+              <h3>Быстрые действия</h3>
+              <button id="clearBans" class="secondary wide" type="button">Снять все баны</button>
+              <button id="resetDemo" class="ghost wide" type="button">Очистить брони и запросы</button>
+              <p class="form-note">Удалит текущие брони кабинок и консолей, запросы игр и уведомления. Пользователи, игры и кабинки останутся.</p>
+            </div>
+          </div>
+
+          <div class="panel table-panel admin-only">
+            <div class="panel-heading">
+              <h3>Отмена броней</h3>
+              <span>Админ может отменить любую активную бронь</span>
+            </div>
+            <div id="adminBookingsList" class="list"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <strong>Центр кабинок и игр · Школа 21</strong>
+          <span>Бронирование кабинок, выдача игр и управление заявками</span>
+        </div>
+        <div class="footer-campus">
+          <span>Кампус</span>
+          <strong id="footerCampus">Кампус выбирается после регистрации</strong>
+        </div>
+        <nav class="footer-links" aria-label="Быстрые ссылки">
+          <button data-view="cabins" type="button">Кабинки</button>
+          <button data-view="games" type="button">Игры</button>
+          <button data-view="profile" type="button">Профиль</button>
+        </nav>
+      </div>
+      <div class="footer-bottom">
+        <span>© 2026 Школа 21. Сервис бронирования.</span>
+        <a href="mailto:radmirhisamov4@gmail.com">radmirhisamov4@gmail.com</a>
+      </div>
+    </footer>
+
+    <div id="gameDetailModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="gameDetailTitle">
+      <article class="game-detail-card">
+        <div class="game-detail-top">
+          <div>
+            <p class="eyebrow">Каталог игр</p>
+            <h3 id="gameDetailTitle">Игра</h3>
+          </div>
+          <button id="closeGameDetail" class="icon-button small" type="button" title="Закрыть" aria-label="Закрыть">x</button>
+        </div>
+        <div id="gameDetailContent"></div>
+      </article>
+    </div>
+
+    <div id="toastStack" class="toast-stack" aria-live="polite"></div>
+    <script src="app.js?v=20260618-support-poll"></script>
+  </body>
+</html>

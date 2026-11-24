@@ -1,0 +1,318 @@
+КОДЫ ТАБЛИЦ БАЗ ДАННЫХ ДЛЯ ПРОЕКТА
+Версия: no-ban, без таблицы spam_bans
+
+============================================================
+БАЗА 1: cabins_booking_db
+============================================================
+
+-- Создать базу можно так, но выполняется из postgres/pgAdmin не внутри самой базы:
+-- CREATE DATABASE cabins_booking_db;
+
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  full_name VARCHAR(150) NOT NULL,
+  phone VARCHAR(20) NOT NULL UNIQUE,
+  email VARCHAR(150) NOT NULL,
+  password_hash TEXT NOT NULL,
+  role VARCHAR(20) NOT NULL DEFAULT 'guest' CHECK (role IN ('guest', 'admin')),
+  is_email_verified BOOLEAN NOT NULL DEFAULT TRUE,
+  campus_city TEXT,
+  campus_address TEXT,
+  avatar_url TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_unique
+ON users (LOWER(email));
+
+CREATE TABLE IF NOT EXISTS cabins (
+  id SERIAL PRIMARY KEY,
+  floor_number INTEGER NOT NULL CHECK (floor_number > 0),
+  cabin_number INTEGER NOT NULL CHECK (cabin_number > 0),
+  cabin_code VARCHAR(50) NOT NULL UNIQUE,
+  cabin_type VARCHAR(120) NOT NULL,
+  capacity INTEGER NOT NULL CHECK (capacity > 0),
+  campus_city TEXT,
+  campus_address TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (floor_number, cabin_number, cabin_code)
+);
+
+CREATE TABLE IF NOT EXISTS bookings (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  cabin_id INTEGER NOT NULL REFERENCES cabins(id) ON DELETE RESTRICT,
+  full_name VARCHAR(150) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  people_count INTEGER NOT NULL CHECK (people_count > 0),
+  start_time TIMESTAMP NOT NULL,
+  end_time TIMESTAMP NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'released', 'cancelled', 'completed')),
+  campus_city TEXT,
+  campus_address TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (end_time > start_time)
+);
+
+-- Одна кабинка не может иметь две активные брони с пересечением времени.
+ALTER TABLE bookings
+  DROP CONSTRAINT IF EXISTS bookings_no_active_time_overlap;
+
+ALTER TABLE bookings
+  ADD CONSTRAINT bookings_no_active_time_overlap
+  EXCLUDE USING gist (
+    cabin_id WITH =,
+    tsrange(start_time, end_time, '[)') WITH &&
+  ) WHERE (status = 'active');
+
+CREATE INDEX IF NOT EXISTS bookings_user_id_idx ON bookings (user_id);
+CREATE INDEX IF NOT EXISTS bookings_cabin_id_idx ON bookings (cabin_id);
+CREATE INDEX IF NOT EXISTS bookings_time_idx ON bookings (start_time, end_time);
+CREATE INDEX IF NOT EXISTS bookings_status_idx ON bookings (status);
+CREATE INDEX IF NOT EXISTS bookings_phone_digits_idx
+ON bookings (regexp_replace(phone, '[^0-9]', '', 'g'));
+
+CREATE TABLE IF NOT EXISTS user_bans (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reason TEXT NOT NULL DEFAULT '',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  lifted_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS booking_actions (
+  id SERIAL PRIMARY KEY,
+  booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  action_type VARCHAR(30) NOT NULL CHECK (action_type IN ('created', 'extended', 'released', 'cancelled')),
+  old_end_time TIMESTAMP,
+  new_end_time TIMESTAMP,
+  comment TEXT,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS booking_actions_booking_id_idx ON booking_actions (booking_id);
+CREATE INDEX IF NOT EXISTS booking_actions_created_by_idx ON booking_actions (created_by);
+
+CREATE TABLE IF NOT EXISTS push_notifications (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+  title VARCHAR(150) NOT NULL,
+  message TEXT NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'created' CHECK (status IN ('created', 'sent', 'failed')),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  sent_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS push_notifications_user_id_idx ON push_notifications (user_id);
+CREATE INDEX IF NOT EXISTS push_notifications_booking_id_idx ON push_notifications (booking_id);
+
+-- В no-ban версии таблица spam_bans не нужна.
+CREATE TABLE IF NOT EXISTS support_messages (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  full_name TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  message TEXT NOT NULL,
+  admin_reply TEXT NOT NULL DEFAULT '',
+  status VARCHAR(20) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'answered', 'closed')),
+  answered_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  answered_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS support_messages_user_id_idx
+ON support_messages (user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS support_messages_status_idx
+ON support_messages (status, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS console_bookings (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  full_name TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  platform VARCHAR(30) NOT NULL CHECK (platform IN ('Xbox', 'PlayStation')),
+  console_slot INTEGER NOT NULL CHECK (console_slot > 0),
+  start_time TIMESTAMP NOT NULL,
+  end_time TIMESTAMP NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'released', 'cancelled', 'completed')),
+  campus_city TEXT,
+  campus_address TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (end_time > start_time)
+);
+
+CREATE INDEX IF NOT EXISTS console_bookings_user_id_idx
+ON console_bookings (user_id, status, end_time);
+
+CREATE INDEX IF NOT EXISTS console_bookings_platform_time_idx
+ON console_bookings (platform, status, start_time, end_time);
+
+ALTER TABLE console_bookings
+  DROP CONSTRAINT IF EXISTS console_bookings_no_active_time_overlap;
+
+ALTER TABLE console_bookings
+  ADD CONSTRAINT console_bookings_no_active_time_overlap
+  EXCLUDE USING gist (
+    platform WITH =,
+    (COALESCE(campus_city, '')) WITH =,
+    console_slot WITH =,
+    tsrange(start_time, end_time, '[)') WITH &&
+  ) WHERE (status = 'active');
+
+DROP TABLE IF EXISTS spam_bans;
+
+-- Стартовые кабинки, если нужно заполнить пустую базу.
+INSERT INTO cabins (floor_number, cabin_number, cabin_code, cabin_type, capacity, is_active)
+VALUES
+  (2, 1, 'SLC6A3', 'Индивидуальная переговорная', 2, TRUE),
+  (2, 2, 'SLC6A4', 'Проектная кабинка', 4, TRUE),
+  (2, 3, 'SLC7B1', 'Командная переговорная', 6, TRUE),
+  (3, 1, 'SLC8C2', 'Тихая кабинка', 3, TRUE),
+  (3, 2, 'SLC9D5', 'Большая переговорная', 10, TRUE),
+  (3, 3, 'SLC10E1', 'Средняя переговорная', 5, TRUE),
+  (4, 1, 'SLC11F2', 'Большая проектная комната', 8, TRUE)
+ON CONFLICT (cabin_code) DO NOTHING;
+
+============================================================
+БАЗА 2: game_rental_db
+============================================================
+
+-- Создать базу можно так, но выполняется из postgres/pgAdmin не внутри самой базы:
+-- CREATE DATABASE game_rental_db;
+
+CREATE TABLE IF NOT EXISTS games (
+  id SERIAL PRIMARY KEY,
+  title VARCHAR(200) NOT NULL,
+  image_url TEXT,
+  youtube_id VARCHAR(32),
+  screenshots JSONB NOT NULL DEFAULT '[]'::jsonb,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS games_title_lower_unique
+ON games (LOWER(title));
+
+CREATE TABLE IF NOT EXISTS game_copies (
+  id SERIAL PRIMARY KEY,
+  game_id INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  platform VARCHAR(30) NOT NULL CHECK (platform IN ('Xbox', 'PlayStation')),
+  copy_number INTEGER NOT NULL CHECK (copy_number > 0),
+  status VARCHAR(30) NOT NULL DEFAULT 'available' CHECK (status IN ('available', 'issued', 'reserved', 'lost')),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (game_id, platform, copy_number)
+);
+
+CREATE INDEX IF NOT EXISTS game_copies_game_id_idx ON game_copies (game_id);
+CREATE INDEX IF NOT EXISTS game_copies_availability_idx ON game_copies (game_id, platform, status, copy_number);
+
+CREATE TABLE IF NOT EXISTS game_requests (
+  id SERIAL PRIMARY KEY,
+  auth_user_id INTEGER,
+  user_email VARCHAR(150),
+  full_name VARCHAR(150) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  game_id INTEGER REFERENCES games(id) ON DELETE SET NULL,
+  copy_id INTEGER REFERENCES game_copies(id) ON DELETE SET NULL,
+  console_booking_id INTEGER,
+  platform VARCHAR(30) NOT NULL CHECK (platform IN ('Xbox', 'PlayStation')),
+  copy_number INTEGER CHECK (copy_number IS NULL OR copy_number > 0),
+  receive_type VARCHAR(30) NOT NULL DEFAULT 'pickup' CHECK (receive_type IN ('pickup', 'delivery')),
+  status VARCHAR(30) NOT NULL DEFAULT 'created' CHECK (status IN ('created', 'approved', 'not_available', 'not_found', 'cancelled', 'completed')),
+  campus_city TEXT,
+  campus_address TEXT,
+  approved_at TIMESTAMP,
+  closed_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS game_requests_auth_user_id_idx ON game_requests (auth_user_id);
+CREATE INDEX IF NOT EXISTS game_requests_user_email_idx ON game_requests (LOWER(user_email));
+CREATE INDEX IF NOT EXISTS game_requests_phone_digits_idx
+ON game_requests (regexp_replace(phone, '[^0-9]', '', 'g'));
+CREATE INDEX IF NOT EXISTS game_requests_status_idx ON game_requests (status);
+CREATE INDEX IF NOT EXISTS game_requests_created_at_idx ON game_requests (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS sms_notifications (
+  id SERIAL PRIMARY KEY,
+  request_id INTEGER REFERENCES game_requests(id) ON DELETE CASCADE,
+  phone VARCHAR(20) NOT NULL,
+  message TEXT NOT NULL,
+  status VARCHAR(30) NOT NULL DEFAULT 'created' CHECK (status IN ('created', 'sent', 'failed')),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  sent_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS sms_notifications_request_id_idx ON sms_notifications (request_id);
+
+CREATE TABLE IF NOT EXISTS admin_actions (
+  id SERIAL PRIMARY KEY,
+  admin_id INTEGER,
+  action_type VARCHAR(80) NOT NULL,
+  target_table VARCHAR(80),
+  target_id INTEGER,
+  comment TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS admin_actions_admin_id_idx ON admin_actions (admin_id);
+CREATE INDEX IF NOT EXISTS admin_actions_target_idx ON admin_actions (target_table, target_id);
+
+-- В no-ban версии таблица spam_bans не нужна.
+DROP TABLE IF EXISTS spam_bans;
+
+-- Представление для остатков игр по платформам.
+CREATE OR REPLACE VIEW game_stock AS
+SELECT
+  g.id AS game_id,
+  g.title,
+  gc.platform,
+  COUNT(gc.id)::int AS total_count,
+  COUNT(gc.id) FILTER (WHERE gc.status = 'available')::int AS available_count
+FROM games g
+LEFT JOIN game_copies gc ON gc.game_id = g.id
+WHERE g.is_active = TRUE
+GROUP BY g.id, g.title, gc.platform;
+
+============================================================
+ПОЛЕЗНЫЕ ПРОВЕРОЧНЫЕ ЗАПРОСЫ
+============================================================
+
+-- Проверить активные брони кабинок:
+SELECT b.id, b.full_name, b.phone, c.cabin_code, b.start_time, b.end_time, b.status
+FROM bookings b
+JOIN cabins c ON c.id = b.cabin_id
+WHERE b.status = 'active'
+ORDER BY b.start_time DESC;
+
+-- Проверить активные брони игр:
+SELECT gr.id, gr.full_name, gr.phone, gr.user_email, g.title, gr.platform, gr.copy_number, gr.status, gr.created_at
+FROM game_requests gr
+LEFT JOIN games g ON g.id = gr.game_id
+WHERE gr.status IN ('created', 'approved')
+ORDER BY gr.created_at DESC;
+
+-- Проверить наличие игр по консолям:
+SELECT
+  g.title,
+  gc.platform,
+  COUNT(gc.id) AS total_count,
+  COUNT(gc.id) FILTER (WHERE gc.status = 'available') AS available_count
+FROM games g
+LEFT JOIN game_copies gc ON gc.game_id = g.id
+WHERE g.is_active = TRUE
+GROUP BY g.title, gc.platform
+ORDER BY g.title, gc.platform;
